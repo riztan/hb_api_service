@@ -1,0 +1,12 @@
+#
+#  Variables de configuración.
+#
+#
+
+
+#
+# --- Versiones y binarios para el cliente tpuy.
+#
+cFileName = "tpuy_win_x86_hb32.exe"
+cPath     = "./clients/tpuy/bin/"
+

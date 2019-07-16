@@ -1,0 +1,79 @@
+#
+# $Id: hbnetio.hbp 16634 2011-04-20 01:45:35Z vszakats $
+#
+
+-w1
+
+-D__TPUY__
+
+# Incluir WebServer
+-D__WEBSERVICE__
+
+# Incluir PostgreSQL
+#-D__PGSQL__
+
+# Incluir MySQL
+#-D__MYSQL__
+
+-D__DEBUG__
+-D__HELP__
+
+
+
+-obin/tpy_server
+
+hbnetio.hbc
+xhb.hbc
+hbhttpd.hbc
+hbssl.hbc
+#xhb.hbc
+#hbct.hbc
+#hbnetio.hbc
+#hbcurl.hbc
+hbpgsql.hbc
+
+#-lxhb -lhbnf -lhbct -lmysqlclient -lpq -lhbgd
+#-lgd -lm -lmysqlclient -lpq -lhbgd
+{unix}-lm -lmysqlclient
+
+
+# HBSSL
+{win}-L/MinGW/openssl-1.1.1-win32-mingw/lib
+
+
+# PostgreSQL
+{win}-L/PgSQLClient/lib
+#{unix}libpaths=/usr/local/lib/postgresql
+{unix}hbpgsql.hbc
+
+# libdolphin (MySQL)
+-I/t-gtk/tdolphin/include
+{win}-L/t-gtk/lib/win_x86/hb32/
+{unix}-L/usr/local/share/t-gtk/lib/Ubuntu_16.04.1/x86_64/hb32/
+-ltdolphin 
+{win}-I/MySQLClient/include
+{win}-L/MySQLClient/lib
+{win}-lmysql
+
+
+-I.
+-I./include
+
+#postgres.c
+
+netio_srv.prg
+tpuy/gmail.prg
+#tpuy/tpy_serv.prg
+#tpuy/tpy_messages.prg
+#tpuy/tapp.prg
+tpuy/tuser.prg
+
+# webserver
+webserver/hbwebserver.prg
+
+#
+tpublic.prg
+connto.prg
+netio_tools.prg
+
+

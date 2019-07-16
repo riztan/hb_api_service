@@ -1,0 +1,188 @@
+/*
+ * netio_login: Realiza ingreso de usuario a sistema TPuy.
+ */
+
+#include "tpy_xbs.ch"
+
+//#xtranslate ::<exp>  =>  oForm:<exp>
+
+function netio_login( lCheck )
+
+   Local lConnect:=.f.
+   Local oForm 
+
+   DEFAULT lCheck := .t.
+
+   if oTpuy:IsDef("WLogin") .AND. IsObject(oTpuy:WLogin) ; return nil ; endif
+
+   DEFINE oForm PUBLIC
+
+   if lCheck
+      oTpuy:RunXBS("netio_check")
+      if oTpuy:IsDef("oUser") .AND. IsObject(oTpuy:oUser)
+         return .t.
+      endif
+   endif
+   
+   ::cResFile := oTpuy:cResources+"login.ui"
+
+   SET RESOURCES ::oResource FROM FILE ::cResFile
+
+   DEFINE WINDOW ::oWnd ;
+          TITLE "Ingresar" ;
+          OF oTpuy:oWnd ;
+          ID "wnd_login" RESOURCE ::oResource
+
+      DEFINE ENTRY ::oEntUser VAR ::cUser ;
+             ID "user" RESOURCE ::oResource
+
+      DEFINE ENTRY ::oPasswd VAR ::cPasswd ;
+             ID "passwd" RESOURCE ::oResource
+
+      DEFINE BUTTON ::oBtnConnect ;
+             ACTION login_Run( oForm ) ;
+             ID "btn_connect" RESOURCE ::oResource
+
+             //ACTION ( oTpuy:RunXBS("netio_table"), ::oWnd:End() ) ;
+
+      DEFINE BUTTON ::oBtnExit ;
+             ACTION ( netio_disconnect(NETSERVER, NETPORT),;
+                      log_exit(oForm), ::End() ) ;
+             ID "btn_exit" RESOURCE ::oResource
+   
+      DEFINE BUTTON ::oBtnRegistro ;
+             ACTION ( oTpuy:RunXBS("netio_registro", oForm ) );
+             ID "btn_registro" RESOURCE ::oResource
+
+   ACTIVATE WINDOW ::oWnd CENTER VALID log_exit(oForm)
+
+   oTpuy:WLogin := ::oWnd
+
+
+//   netio_disconnect( NETSERVER, NETPORT )
+Return 
+
+function log_exit(oForm)
+   oTpuy:WLogin := nil
+   oForm:=NIL
+return .t.
+
+
+function login_Run( oForm )
+   Local cScript
+   Local cLogin
+
+   cLogin  := ::oEntUser:GetText()
+   cScript := cLogin
+   if empty(cScript) ; cScript := "netio_table" ; endif
+
+   if Empty( ::oPasswd:GetText() )
+      MsgAlert( "Debe incluir una contraseña.","Atención" )
+      return .f.
+   else
+      //view(cLogin)
+      if !net:tps_IsLogin( cLogin )
+         MsgAlert( "El valor de usuario [<b>" + cLogin + "]</b>. " + ;
+                   "No es válido. ", "Valor Incorrecto" MARKUP )
+         ::oEntUser:SetFocus()
+         Return .f.
+      else
+         if !login_IsUser(oForm)
+            return .f.
+         endif
+      endif
+
+   endif
+
+   DESTROY WINDOW ::oWnd
+
+   oTpuy:oWLogin := nil
+   oForm:Release()
+
+   //oTpuy:RunXBS("net_poslogin")
+   //oTpuy:RunXBS("poslogin")
+   View("Listo..")
+   
+return .t.
+
+
+function login_IsUser(oForm)
+   local cUser, cPasswd 
+   local oUser,cAux, hSession, hUserData
+
+   cUser := ::oEntUser:GetText()
+   cPasswd := hb_crypt(::oPasswd:GetText(), oTPuy:cPassword ) //hb_MD5( ::oPasswd:GetText() )
+
+   /* Si ya estaba un usuario registrado... entonces.. hay que cerrar la sesion. */
+   if oTPuy:IsDef("oUser") .and. hb_IsObject( oTPuy:oUser )
+      if oTpuy:oUser:cLogin = cUser
+         MsgInfo("Esta sesión corresponde al usuario ["+cUser+"]")
+         return .f.
+      endif
+      TpyLogout( oTpuy:oUser:cLogin )
+   endif
+
+   /* oUser es el identificador del objeto remoto..
+    * para enviar o recibir algo del objeto remoto usar:
+    * ~~oUser:<mensaje> ó r:oUser:<mensaje>  */
+   hSession := ~ServerLogin( cUser, cPasswd, "127.0.0.1" /*TODO# Detectar IP*/ )
+
+   if hSession["ok"]
+      oUser := hSession["content"]["session_id"]
+      hUserData := hSession["content"]["user_data"]
+   endif
+
+   // Ahora se debe registrar el objeto oUser localmente
+   // para que tpuy siempre esté mandando el identificador
+   // y se pueda recibir respuesta del servidor.
+
+   if hb_IsNil( oUser ) .or. ( VALTYPE( oUser)="L" .and. !oUser )
+      return .f. 
+   endif
+
+   if !oTpuy:IsDef( "oUser" ) .or. !hb_IsObject( oTPuy:oUser )
+      DEFINE PUBLIC oTpuy:oUser
+
+      oTpuy:oUser:cHandle    := oUser  // -- Completado el registro local del usuario.
+
+      oTPuy:oUser:cLogin     := cUser
+      oTPuy:oUser:cFirstName := hUserData["firstname"]
+      oTPuy:oUser:cLastName  := hUserData["lastname"]
+      oTPuy:oUser:cShortName := hUserData["shortname"]
+      oTPuy:oUser:cMail      := hUserData["email"]
+
+   endif
+
+//   oTpuy:oStatusBar:SetText("Usuario: "+ oTpuy:oUser:cShortName )
+
+   View( ~~oUser:cUser )
+   MsgInfo( oTPuy:oUser:cFirstName + " " + oTPuy:oUser:cLastName, "Bienvenido!" )
+
+Return .t.
+
+
+FUNCTION tpyLogout( cUser )
+   local lRet := .f.
+   local uValue, oMsgRun
+
+   oMsgRun := MsgRunStart("Cerrando Objetos de la Sesión")
+
+   inkey(.5)
+   FOR EACH uValue IN oTpuy:oUser:hVars
+      If hb_IsObject(uValue)
+         uValue:End()
+      EndIf
+   NEXT 
+
+   if hb_IsObject( oTPuy:oUser )
+      lRet := ~ServerLogout( cUser )
+      oTpuy:Del("oUser") 
+tracelog("Eliminado el objeto oTpuy:oUser")
+   endif
+
+   MsgRunStop(oMsgRun)
+   
+RETURN lRet
+
+
+//EOF

@@ -1,0 +1,102 @@
+/*
+ *  Proyecto Tpuy.
+ *
+ *  Programa Inicial.   
+ */
+
+
+#include "tpy_xbs.ch"
+
+#define __TPY_ICON__  oTPuy:cImages + "tpuy-icon-32.png"
+
+
+Procedure begin()
+
+   LOCAL tTime := hb_DateTime()
+   LOCAL oForm
+
+   SET PUBLIC oForm
+
+   oTpuy:lNetIO      := .f.  
+   oTpuy:tLastNetIO  := tTime    // Ultima conexion a servidor NetIO
+   oTpuy:lNetIOXBSUp := .f.      // Control de Actualizacion de Scripts
+   oTpuy:tNetIOXBSUp := tTime    // Control de Actualizacion de Scripts
+   oTpuy:nIntervalUp := 0.005000 // Intervalo de tiempo para Verificar y Actualizar Scripts
+
+   __NetIOUpdate( oForm )
+
+   DEFINE WINDOW ::oWnd ;
+          TITLE oTPuy:cSystem_Name ;
+          ICON_FILE __TPY_ICON__   ;
+          
+
+   ACTIVATE WINDOW ::oWnd
+
+
+RETURN
+
+
+
+
+
+/** __NetIOUpdate()
+ *  Evalua si ya a transcurrido el tiempo necesario para
+ *  ejecutar el script de actualizacion automatica de scripts.
+ */
+FUNCTION __NETIOUPDATE( oForm )
+
+   //local nInterval := 0.005000
+   local cScript := "xbs_update"
+   local tTime := hb_DateTime() //SECONDS()
+   local uReturn
+
+   if !oTpuy:IsDef("lNetInit") ; oTpuy:lNetInit := .f. ; endif
+
+   if oTpuy:lNetInit
+      If !( ( tTime - oTpuy:tNetIOXBSUp ) > oTpuy:nIntervalUp )
+         return .t.
+      EndIf
+   endif
+
+   // Si no existe el timer, lo creamos.
+   If !oTpuy:IsDef( "oNetIOUpdate" )
+      DEFINE TIMER oTpuy:oNetIOUpdate;
+             INTERVAL 3000;
+             ACTION lValor := __NetIOUpdate( oForm );
+
+      ACTIVATE TIMER oTpuy:oNetIOUpdate
+   Else
+      if hb_ISOBJECT(::oWnd) .and. oTpuy:oNetIOUpdate:nInterval < 50000
+         oTpuy:oNetIOUpdate:End()
+         DEFINE TIMER oTpuy:oNetIOUpdate;
+                INTERVAL 60000;
+                ACTION lValor := __NetIOUpdate( oForm );
+
+         ACTIVATE TIMER oTpuy:oNetIOUpdate
+      endif
+   EndIf
+
+   if !hb_IsObject( ::oWnd ) ; return nil ; endif
+
+   if !File( oTpuy:cXBScript+"netio_check.xbs" ) ; return .f. ; endif 
+
+   uReturn := oTpuy:RunXBS("netio_check")
+
+   if ValType(uReturn)="L" .and. !uReturn ; return .f. ; endif
+
+   /* Actualizamos los Script */
+   if FILE( oTpuy:cXBScripts+cScript+".xbs" )
+      oTpuy:RunXBS( cScript )
+   else
+      ~~RunXBS( cScript )
+   endif
+
+   oTpuy:tNetIOXBSUp := hb_DateTime() //nSeconds
+
+RETURN .T.
+
+
+
+
+//eof
+

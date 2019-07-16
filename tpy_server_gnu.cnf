@@ -1,0 +1,14 @@
+#
+#  Variables de configuración.
+#
+#
+
+
+#
+# --- Versiones y binarios para el cliente tpuy.
+#
+cFileName = "tpuy_Ubuntu_16041_x86_64_hb32"
+cPath     = "./clients/tpuy/bin/"
+
+
+
