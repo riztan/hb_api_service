@@ -7,31 +7,36 @@
 
 #include "tpy_xbs.ch"
 
-#define __TPY_ICON__  oTPuy:cImages + "tpuy-icon-32.png"
+//#define __TPY_ICON__  oTPuy:cImages + "tpuy-icon-32.png"
 
 
 Procedure begin()
 
    LOCAL tTime := hb_DateTime()
-   LOCAL oForm
+   LOCAL oForm, cIconFile := oTPuy:cImages+"papaya.ico"
 
    SET PUBLIC oForm
 
-   oTpuy:lNetIO      := .f.  
+   oTPuy:lExit       := .f.      // Banderin para indicar que se ha invocado salida del sistema y
+                                 // evitar que procesos en timer sigan ejecutando.
+   oTpuy:lNetIO      := .f. 
    oTpuy:tLastNetIO  := tTime    // Ultima conexion a servidor NetIO
    oTpuy:lNetIOXBSUp := .f.      // Control de Actualizacion de Scripts
    oTpuy:tNetIOXBSUp := tTime    // Control de Actualizacion de Scripts
    oTpuy:nIntervalUp := 0.005000 // Intervalo de tiempo para Verificar y Actualizar Scripts
 
+   oTPuy:cSystem_Name := "Test API Service "
+
+
+   oTPuy:oWnd := NIL
+
+   oTPuy:tLastNetCheck  := 0
+
+   oTPuy:oTimer:End() // Desactivamos el timer incluido en el binario de TPuy
+
    __NetIOUpdate( oForm )
 
-   DEFINE WINDOW ::oWnd ;
-          TITLE oTPuy:cSystem_Name ;
-          ICON_FILE __TPY_ICON__   ;
-          
-
-   ACTIVATE WINDOW ::oWnd
-
+   oTPuy:RunXBS("netio_check")
 
 RETURN
 
@@ -50,6 +55,22 @@ FUNCTION __NETIOUPDATE( oForm )
    local tTime := hb_DateTime() //SECONDS()
    local uReturn
 
+   if oTPuy:lExit 
+      oTPuy:oNetIOUpdate:End()
+      return .t.
+   endif
+
+   oTPuy:cTime := LEFT(TIME(),8)
+   if hb_IsObject( oTPuy:oWnd ) 
+//hb_IsObject( oTPuy:oStatusBar )
+      if oTPuy:IsDef("OSTBAR") //.and. hb_IsObject( oTPuy:oStBar ) //.and. oTPuy:oStBar:IsDerivedFrom("TSTATUSBAR")
+         oTPuy:oStBar:Refresh()
+//oTPuy:oWnd:SetTitle( oTPuy:cTime )
+      endif
+      //oTPuy:oStatusBar:SetText( oTPuy:cSystem_Name + " | Hora: "+oTPuy:cTime )
+   endif
+
+
    if !oTpuy:IsDef("lNetInit") ; oTpuy:lNetInit := .f. ; endif
 
    if oTpuy:lNetInit
@@ -60,41 +81,40 @@ FUNCTION __NETIOUPDATE( oForm )
 
    // Si no existe el timer, lo creamos.
    If !oTpuy:IsDef( "oNetIOUpdate" )
+
       DEFINE TIMER oTpuy:oNetIOUpdate;
-             INTERVAL 3000;
+             INTERVAL 1000;
              ACTION lValor := __NetIOUpdate( oForm );
 
       ACTIVATE TIMER oTpuy:oNetIOUpdate
-   Else
-      if hb_ISOBJECT(::oWnd) .and. oTpuy:oNetIOUpdate:nInterval < 50000
-         oTpuy:oNetIOUpdate:End()
-         DEFINE TIMER oTpuy:oNetIOUpdate;
-                INTERVAL 60000;
-                ACTION lValor := __NetIOUpdate( oForm );
 
-         ACTIVATE TIMER oTpuy:oNetIOUpdate
-      endif
    EndIf
 
-   if !hb_IsObject( ::oWnd ) ; return nil ; endif
+   if !hb_IsObject( oTPuy:oWnd ) ; return nil ; endif
 
    if !File( oTpuy:cXBScript+"netio_check.xbs" ) ; return .f. ; endif 
 
-   uReturn := oTpuy:RunXBS("netio_check")
+   //-- Verificamos chequeo de NetIO cada 30 segs
 
-   if ValType(uReturn)="L" .and. !uReturn ; return .f. ; endif
+   if oTPuy:tLastNetCheck = 0 .or. ( hb_DateTime() - oTPuy:tLastNetCheck ) >= 30000
 
-   /* Actualizamos los Script */
-   if FILE( oTpuy:cXBScripts+cScript+".xbs" )
-      oTpuy:RunXBS( cScript )
-   else
-      ~~RunXBS( cScript )
+      uReturn := oTpuy:RunXBS("netio_check")
+
+      if ValType(uReturn)="L" .and. !uReturn ; return .f. ; endif
    endif
-
-   oTpuy:tNetIOXBSUp := hb_DateTime() //nSeconds
 
 RETURN .T.
 
+
+
+/** Intenta confirmar si el mensaje recibido corresponde a un hash del servidor tpuy
+ */
+function tps_isMessage( uMsg )
+   if hb_IsHash( uMsg ) .and. hb_hHasKey( uMsg, "ok" ) .and. ;
+      hb_hHasKey( uMsg, "content" )
+      return .t.
+   endif
+return .f.
 
 
 

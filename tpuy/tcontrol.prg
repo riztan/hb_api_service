@@ -17,7 +17,6 @@ protected:
    DATA oConn
 
    METHOD ObjFree( cObjId )         INLINE  tps_free( cObjId )
-   METHOD End()                     INLINE ( /*::oLServer:End(),*/ ::oEnd() )
 
 exported:
    DATA lError         INIT .f.
@@ -38,6 +37,7 @@ exported:
 
    METHOD Saluda()    INLINE "HOLA! Soy el metodo Saluda() de la clase TCONTROL !!!!"   
 
+   METHOD End()                     INLINE ( /*::oLServer:End(),*/ ::oEnd() )
 
 ENDCLASS
 

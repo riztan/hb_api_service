@@ -15,8 +15,8 @@ CLASS TSESSION FROM TPUBLIC
    METHOD Help()    INLINE "Hi. This is the TSession class. "                                    +;
                            "Through this class, you can get information from your open session. "+CRLF+;
                            "Some methods available: "                                            +CRLF+;
-                           "UserData () -> Returns the basic user data in this session. "        +CRLF+;
-                           "Logout () -> End this session."
+                           "UserData()  -> Returns the basic user data in this session. "        +CRLF+;
+                           "Logout()    -> End this session."
 
 ENDCLASS
 

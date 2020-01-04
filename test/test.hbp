@@ -1,0 +1,11 @@
+#
+# $Id: hbnetio.hbp 16634 2011-04-20 01:45:35Z vszakats $
+#
+
+-w1
+
+hbnetio.hbc
+xhb.hbc
+
+hbapi_test01.prg
+

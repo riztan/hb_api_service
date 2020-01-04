@@ -20,7 +20,7 @@
  *
  * La intención de este programa es ofrecer la posibilidad de crear aplicaciones 
  * livianas que no realicen conexiones directas a la base de datos para reducir
- * la carga en el servidor. 
+ * la carga en el servdor. 
  * Adicionalmente centralizar las acciones de control en el servidor como tal.
  * Un ejemplo del trabajo podría ser el hecho de generar algo similar a los triggers
  * en el servidor de NetIO de manera que en la aplicación cliente eso sea transparente.
@@ -30,10 +30,6 @@
  *
  */
 
-//#define DBSERVER  "localhost"
-//#define DBPORT    2941
-//#define DBPASSWD  "topsecret"
-//#define DBUSER    "hbuser"
 #include "connect.ch"
 
 /** \var oAcc          Instancia de (TAcc)
@@ -57,24 +53,10 @@ procedure Main()
 
    nTime := 15
 
-   pSockSrv := tpuy_mtserver( NETPORT,,, /* RPC */ .T., NETPASSWD )
-
-//? pSockSrv
-//? NETIO_SRVINFO_PEERADDRESS
-//? netio_SrvStatus( pSockSrv, NETIO_SRVINFO_PEERADDRESS, @cValue )
-
-   if empty( pSockSrv )
-      tracelog "Cannot start NETIO server !!!"
-      //wait "Press any key to exit..."
-      quit
-   endif
+   SET( _SET_DATEFORMAT, "yyyy/mm/dd" )
 
    tps_Welcome()
    ?
-
-   tracelog "Servidor TPuy (NetIO) Iniciado."
-   tracelog "Puerto", NETPORT
-
    /* Creamos el Objeto Publico */
 
    tracelog "Creando objeto de acceso publico [oAcc]"
@@ -90,11 +72,32 @@ procedure Main()
       "               metodos de entrada al servidor (la puerta de entrada) " 
    #endif
 
+   //-- Creación del objeto de control principal de la aplicación.
    oApp := TControl():New()
+
+   if hb_IsNIL( oApp )
+      tracelog "El objeto oApp no se ha podido crear. No es posible continuar."
+      return
+   endif
+
+   
+   //-- Iniciamos los servicios.
+
+   pSockSrv := tpuy_mtserver( NETPORT,,, /* RPC */ .T., NETPASSWD )
+
+   if empty( pSockSrv )
+      tracelog "Cannot start NETIO server !!!"
+      //wait "Press any key to exit..."
+      quit
+   endif
+
+
+   tracelog "Servicio API  (NetIO) Iniciado."
+   tracelog "Puerto", NETPORT
    
 
 
-   //--  Iniciamos servicio web.  |  Initialice webservice
+   //--  Iniciamos servicio web.
    #ifdef __WEBSERVICE__
      tracelog "Iniciando Servicio Web."
      hb_threadDetach( hb_threadStart( @hb_webserver() ) )
@@ -105,12 +108,23 @@ procedure Main()
    wait
 
 //   tracelog "NETIO_DISCONNECT():", netio_disconnect( DBSERVER, DBPORT )
-   tracelog "stopping the server..."
-   netio_serverstop( pSockSrv, .t. )
-
-   tps_End()
+   end_service( pSockSrv )
 
 return
+
+
+Procedure end_service( pSockSrv )
+   tracelog "stopping the server..."
+   netio_serverstop( pSockSrv, .t. )
+   
+   //-- Cerrar las sesiones en oApp
+   if hb_IsObject( oApp )
+      debug "Cerrando Objeto de control (oApp)..."
+      oApp:End()
+   endif
+
+   tps_End()
+RETURN
 
 
 
@@ -141,17 +155,18 @@ debug "Funcion:", cFuncName, " Sesion:",cSession," Obj:", cObj, ...
    if hb_pValue(1) = nil ; return nil ; endif
    TRY 
       if empty( cSession ) .or. UPPER(cSession) = "OACC"
-         uReturn := hb_deserialize( netio_funcexec( cFuncName, "", cSession, cObj, ...  ) )
+         uReturn := netio_funcexec( cFuncName, "", cSession, cObj, ...  )
       else
-         uReturn := hb_deserialize( netio_funcexec( cFuncName, cSession, cSession,cObj, ...  ) )
+         tracelog cSession, cObj
+         uReturn := netio_funcexec( cFuncName, cSession, cSession,cObj, ...  )
       endif
-debug hb_valToExp( uReturn )
-      uContent := uReturn
+//debug hb_valToExp( uReturn )
+      uContent := hb_deserialize( uReturn )
       uReturn := tpy_Message( 0, "", uContent )
    CATCH
       tracelog "Problemas al ejecutar ",cFuncName, cSession, cObj
       //uReturn := hb_deserialize( nil )
-      uReturn := tpy_message( 500, "problema desconocido" )
+      uReturn := tpy_message( 500 ) //"problema desconocido"
    END
    if hb_IsHash( uContent ) //.and. hb_hHasKey( uContent, "ok" )
       return uContent 
@@ -161,13 +176,42 @@ return uReturn //hb_deserialize( netio_funcexec( ... ) )
 
 
 
-FUNCTION tpy_message( nId, cMsg, uContent )
-   local hMessage
+FUNCTION tpy_message( nId, cMsg, uContent, cType )
+   local hMessage, cFormat := ""
+
+   default cType to "unknow"
+
+   if Empty(cMsg) .and. nId>0
+      cMsg := err_msg( nId )
+   endif
+
+   if cType = "unknow"
+      cType := VALTYPE( uContent )
+      Do Case
+      Case cType="C"
+         cType := "string"
+      Case cType="N"
+         cType := "numeric"
+      Case cType="D"
+         cType := "date"
+      Case cType="T"
+         cType := "date_time"
+      Case cType="L"
+         cType := "boolean"
+      Case cType="A"
+         cType := "array"
+      Case cType="H"
+         cType := "hash"
+      Other
+         cType := "unknow"
+      EndCase
+   endif 
 
    hMessage := {                              ;
                  "ok" => iif( nId=0,.t.,.f.), ;
                  "error_id" => nId,           ;
                  "message"  => cMsg,          ;
+                 "type"     => cType,         ;
                  "content"  => uContent       ;
                }
 RETURN hMessage

@@ -9,46 +9,54 @@
 FUNCTION netio_check()
 
   local lConnect := .f.
-  local oMsgRun
+  local oMsgRun, oErr
 
   if FILE( "connect.ch" )
      #include "connect.ch"
   endif
 
-  if !oTpuy:lNetIO 
+  //-- Revisamos estatus de banderin de salida. Esto para evitar
+  //   intentar conectar cuando sea a invocado la salida del sistema.
+  if oTPuy:lExit
+     return .f.
+  endif
+
+  if !oTPuy:lNetIO .and. !oTPuy:lExit
 
      try
-        oMsgRun := MsgRunStart("Conectando al Servidor NetIO...")
+        oMsgRun := MsgRunStart("Conectando al Servidor...")
         lConnect := netio_connect( NETSERVER, NETPORT,, NETPASSWD )
-        if lConnect
-           if !oTpuy:Isdef( "oUser" )
-              __Login() //oTpuy:RunXBS("netio_login",.f.)
-           endif
-        endif
-        oMsgRun:End()
-     catch
-        MsgStop( "No se puede conectar con "+NETSERVER )
+     catch oErr
+        MsgStop( "No se puede conectar con "+NETSERVER+CRLF+;
+                 oErr:Description )
+        
         oMsgRun:End()
         Return .F.
      end
+        oMsgRun:End()
+        if lConnect
+           if !oTPuy:Isdef( "oUser" )
+              __Login() //oTPuy:RunXBS("netio_login",.f.)
+           endif
+        endif
 
      If !lConnect
         MsgAlert("No logro conectar con "+NETSERVER)
         Return lConnect
      EndIf
 
-     oTpuy:lNetIO := .t.
+     oTPuy:lNetIO := .t.
      Check_Version()
-     oTpuy:tLastNetIO := hb_DateTime()
+     oTPuy:tLastNetIO := hb_DateTime()
 
   endif
 
-  if (hb_DateTime() - oTpuy:tLastNetIO) >= 0.001000 
+  if (hb_DateTime() - oTPuy:tLastNetIO) >= 0.001000 
      if netio_GetConnection( NETSERVER, NETPORT,, NETPASSWD ) = NIL
-        oTpuy:lNetIO := .f.
+        oTPuy:lNetIO := .f.
      else
-        if !oTpuy:IsDef("oUser")
-           __Login() //oTpuy:RunXBS("netio_login",.f.)
+        if !oTPuy:IsDef("oUser")
+           __Login() //oTPuy:RunXBS("netio_login",.f.)
         endif
      endif
   endif
@@ -60,7 +68,7 @@ RETURN .T.
 Procedure __Login()
 
    local cScriptName := "netio_login", cScriptFile
-   local aScripts, aScript, cMD5, cSource 
+   local aScripts, aScript, cMD5, cSource, oErr
 
    __FilesCheck("INC")
    __FilesCheck("RES")
@@ -71,7 +79,7 @@ Procedure __Login()
    aScripts := ~GetScripts()
 
    FOR EACH aScript IN aScripts
-      cScriptFile := oTpuy:cXBScripts+aScript[1]+".xbs"
+      cScriptFile := oTPuy:cXBScripts+aScript[1]+".xbs"
       cMD5 := hb_MD5File( cScriptFile )
       if !File( cScriptFile ) .or. !(aScript[2] == cMD5)
          cSource := ~GetScripts( aScript[1] )
@@ -79,15 +87,20 @@ Procedure __Login()
       endif
    NEXT
 */
-   cScriptFile := oTpuy:cXBScripts+cScriptName+".xbs" 
+   cScriptFile := oTPuy:cXBScripts+cScriptName+".xbs" 
 
    If File(cScriptFile)
-      oTpuy:RunXBS(cScriptName,.f.)
+try
+      oTPuy:RunXBS(cScriptName, .F. )
+catch oErr
+   MsgStop( oErr:description )
+end
    Else
       MsgStop("No se puede ejecutar script de login.")
    EndIf
 
 return
+
 
 
 /* Realiza verificación de ficheros base */
@@ -97,23 +110,25 @@ Procedure __FilesCheck(cType)
 
    if cType = "XBS"
       aRFiles := ~ScriptList()
-      cDir := oTpuy:cXbScript
+      cDir := oTPuy:cXbScript
       bGet := {|| ~ScriptGet(aFile[1]) }
    elseif cType = "INC"
       aRFiles := ~IncList()
-      cDir := oTpuy:cIncludes
+      cDir := oTPuy:cIncludes
       bGet := {|| ~IncGet(aFile[1]) }
    elseif cType = "RES"
       aRFiles := ~ResourceList()
-      cDir := oTpuy:cResources
+      cDir := oTPuy:cResources
       bGet := {|| ~ResourceGet(aFile[1]) }
    elseif cType = "IMG"
       aRFiles := ~ImageList()
-      cDir := oTpuy:cImages
+      cDir := oTPuy:cImages
       bGet := {|| ~ImageGet(aFile[1]) }
    else
       return nil
    endif
+
+   if Empty( aRFiles ) ; return ; endif
 
    FOR EACH aFile IN aRFiles
       cLFile_MD5 := hb_MD5File( cDir+aFile[1] )
@@ -122,7 +137,6 @@ Procedure __FilesCheck(cType)
          hb_MemoWrit( cDir+aFile[1], Eval(bGet) )
       endif
    NEXT
-   
 return
 
 //eof
