@@ -6,6 +6,7 @@
 /*
 
 * Para ejecutar la primera vez, es necesario crear los certificados.
+* To run the first time, it is necessary to create the certificates.
 
 openssl genrsa -out privatekey.pem 2048
 openssl req -new -subj "/C=LT/CN=mycompany.org/O=My Company" -key privatekey.pem -out certrequest.csr
@@ -18,7 +19,9 @@ REQUEST __HBEXTERN__HBSSL__
 
 REQUEST DBFCDX
 
-MEMVAR server, get, post, cookie, session, hData
+MEMVAR server, get, post, cookie, session
+
+STATIC oServer, oApp, hMount
 
 
 #include "include/tpy_server.ch"
@@ -28,14 +31,12 @@ MEMVAR server, get, post, cookie, session, hData
 
 PROCEDURE hb_webServer()
 
-   LOCAL oServer, lNetIO
+   LOCAL /*oServer,*/ lNetIO
 
    LOCAL oLogAccess
    LOCAL oLogError
 
    LOCAL nPort
-
-   hData := { "data" => {1,1,1,1,1} }
 
    hb_cdpSelect("UTF8")
 
@@ -87,6 +88,19 @@ PROCEDURE hb_webServer()
 
    oServer := UHttpdNew()
 
+   oApp := TPublic():New()
+//? hb_valtoexp( oApp )
+
+   hMount := { ;
+         "/tpy"                => @hbnetio() ,   ;
+         "/func"               => @funcexec(),   ;
+         "/hello"              => {|| UWrite( hb_StrToUTF8(~Saluda()["content"])) }, ;
+         "/info"               => {|| UProcInfo() }, ;
+         "/html"               => {|| URedirect( "/html/" ) }, ;
+         "/html/*"             => {| x | QOut( STRTRAN(hb_DirBase(),"/bin","/html") + X ), ;
+                                             UProcFiles( STRTRAN(hb_DirBase(), "/bin", "/html")  + X, .F. ) }, ;
+         "/"                   => {|| URedirect( "/hello" ) } }
+
    IF ! oServer:Run( { ;
          "FirewallFilter"      => "", ;
          "LogAccess"           => {| m | oLogAccess:Add( m + hb_eol() ) }, ;
@@ -97,13 +111,8 @@ PROCEDURE hb_webServer()
          "PrivateKeyFilename"  => "privatekey.pem", ;
          "CertificateFilename" => "certificate.pem", ; //"certificate.crt", ;
          "SSL"                 => .T., ;
-         "Mount"               => { ;
-         "/tpy"                => @hbnetio() ,   ;
-         "/func"               => @funcexec(),   ;
-         "/uctoutf8"           => @proc_uctoutf8(), ;
-         "/hello"              => {|| UWrite( ~Saluda() ) }, ;
-         "/info"               => {|| UProcInfo() }, ;
-         "/"                   => {|| URedirect( "/hello" ) } } } )
+         "Mount"               => hMount }  )
+
       oLogError:Close()
       oLogAccess:Close()
       ? "Server error:", oServer:cError
@@ -118,16 +127,77 @@ PROCEDURE hb_webServer()
 
 
 
+STATIC FUNCTION funcexec()
+   local oResp, aListFunc, cListFunc
 
-STATIC FUNCTION proc_uctoutf8()
-   local cCode, hResult, cResult
+   oResp := TPUBLIC():New()
+//   oResp:lSensitive := .T.
+
+   //-- primero filtrar lo solicitado a través de la lista de funciones o comandos permitidos.
+   //? hb_ValToExp( get )
+   cListFunc := hb_MemoRead( "LISTFUNC.txt" )
+   
+   aListFunc := hb_aTokens( cListFunc, hb_eol() )
+
+   if ASCAN( aListFunc, {|a| lower(HGetKeyAt( get, 1 )) == a } ) = 0
+      oResp:ok := .f.
+      oResp:description := "instruction not allowed"
+      oResp:result      := ""
+      //UWrite( hb_StrToUTF8( hb_jsonencode(oResp:hVars) ) )
+      web_message( 1, "", oResp:hVars,, .T. )
+      return NIL
+   endif
+
+   oResp:ok          := .t.
+   oResp:description := ""
+   oResp:result      := netio_FuncExec( HGetKeyAt(get,1) )
+   //UWrite( hb_jsonencode(oResp:hVars) )
+   web_message( 0, "", oResp:hVars, oResp:description, .T. )
+
+RETURN NIL
+
+
+
+STATIC PROCEDURE tpyHeaders()
+//   UAddHeader( "Content-Type", "application/json; charset=utf-8" )
+   UAddHeader( "Access-Control-Allow-Origin", "*" )
+   UAddHeader( "HB_API-Service-Version", "0.0.1" )
+RETURN
+
+
+
+STATIC PROCEDURE tpyCheckRequest()
+   IF server[ "REQUEST_METHOD" ] == "POST" .and. !Empty( post )
+      //USessionStart()
+/*
+//-- Dejo esto en comentario para luego ver lo de la sesion acá. RIGC(2019-08-12)
+      IF ! Empty( cUser ) .AND. dbSeek( cUser, .F. ) .AND. ! Deleted() .AND. ;
+            PadR( hb_HGetDef( post, "password", "" ), 16 ) == FIELD->PASSWORD
+         session[ "user" ] := cUser
+         URedirect( "main" )
+      ELSE
+         URedirect( "login?err" )
+         USessionDestroy()
+      ENDIF
+      dbCloseArea()
+*/
+      get := post
+   ENDIF
+
+RETURN
+
+
+
+/** Ejecuta un instruccion en una session dada
+ */
+STATIC FUNCTION tpySession( cSession )
+   local uResp, nLen, uValue
+   local aParams := {"__objMethod",cSession}
    local cResp := "json"
    local aResp := {"json","hb"}
 
-   IF hb_HHasKey( get, "code" )
-      cCode := PadR( get["code"], 5 )
-      if Empty(cCode) ; RETURN NIL ; endif
-   ENDIF
+   tpyHeaders()
+   tpyCheckRequest()
 
    IF hb_HHasKey( get, "res" )
       if ASCAN( aResp, {|a| a=get["res"] } ) > 0  
@@ -135,58 +205,65 @@ STATIC FUNCTION proc_uctoutf8()
       endif
    ENDIF
 
-   cResult := net:uctoutf8( cCode )
-   if Empty( cResult )
-      RETURN NIL
+debug hb_valtoexp( get )
+
+//      AEVAL( hb_HKeys(get), {|o| AADD(aParams, o ) } )
+   //-- Anteriormente enviabamos solo los keys del hash "get", ahora enviamos
+   //   el hash completo. Asi se procesa la información mejor y como debe ser.
+
+   nLen := LEN( get )
+//tracelog "aParameters LEN", nLen
+   AADD( aParams, hb_hKeyAt(get, 1) )
+   //-- Si solo se recibe la instrucción y se recibe un valor, se utiliza como parametro
+   if nLen=1 
+      uValue := hb_hValueAt(get, 1)
+      if !empty(uValue) .and. !hb_IsNIL(uValue) ; AADD( aParams, uValue ) ; endif
+   //-- Si se recibe la instrucción y un solo parámetro, se extrae el valor de una vez y se envía como parámetro.
+//   elseif nLen=2
+//      uValue := hb_hValueAt(get, 2)
+//      if !empty(uValue) .and. !hb_IsNIL(uValue) ; AADD( aParams, uValue ) ; endif
+   else
+      hb_hDel( get, hb_hKeyAt( get, 1) )
+      AADD( aParams, get )
    endif
 
-   hResult := { "utf8"=>cResult, "string" => hb_hextostr(cResult) }
+//debug hb_valtoexp(server)
+//debug hb_valtoexp(aParams)
 
-   Do Case 
-      Case cResp = "json"
-         UWrite( hb_jsonEncode( hResult ) ) 
-      Case cResp = "hb"
-         UWrite( hb_ValToExp( cResult ) )
-   EndCase
+   uResp := hb_ExecFromArray( "FROMREMOTE", aParams )
 
-   RETURN NIL
+//debug VALTYPE( uResp )
 
+   if hb_IsHash( uResp ) .and. hb_hHasKey( uResp, "ok" )  ;
+                         .and. hb_hHasKey( uResp, "type") ;
+                         .and. uResp["type"]="object_id"
 
-
-STATIC FUNCTION funcexec()
-   local cCommand, uResp
-   local cClave := "Sarisariñama", cPasswd
-   local oResp, aListFunc, cListFunc
-
-   oResp := TPUBLIC():New()
-//   oResp:lSensitive := .T.
-
-   //-- primero filtrar lo solicitado a través de la lista de funciones o comandos permitidos.
-   ? hb_ValToExp( get )
-   cListFunc := hb_MemoRead( "LISTFUNC.txt" )
+      oServer:SetPath( "/"+uResp["content"]["id_token"], ;
+                       {|| tpySession( uResp["content"]["id_token"] ) } )
+   endif
    
-   aListFunc := hb_aTokens( cListFunc, hb_eol() )
+//      debug hb_ValToExp( uResp )
+   if hb_IsHash( uResp ) 
+      if hb_hHasKey( uResp, "ok" ) 
+         web_message( 0, "", uResp, cResp, .T. )
 
-   if ASCAN( aListFunc, {|a| lower(HGetKeyAt( get, 1 )) == a } ) = 0
-      oResp:ok := .f.
-      oResp:description := "instrucción no reconocida"
-      UWrite( hb_StrToUTF8( hb_jsonencode(oResp:hVars) ) )
-      return ""  
+         return NIL
+      endif
+
+      web_message( 0, "", uResp, cResp )
+
    endif
-
-   oResp:result := netio_FuncExec( HGetKeyAt(get,1) )
-   UWrite( hb_jsonencode(oResp:hVars) )
-
-   RETURN NIL
+RETURN nil
 
 
 
 STATIC FUNCTION hbnetio()
-   local cCommand, uResp
-   local cClave := "Sarisariñama", cPasswd
-   local oResp, aListFunc, oSession, aParams := {"__objMethod"}
+   local cCommand, uResp, oErr
+   local cKey := "Sarisariñama", cPasswd
+   local oResp, aListFunc, aParams := {"__objMethod"}
    local cResp := "json"
    local aResp := {"json","hb"}
+   local cHome
 
    oResp := TPUBLIC():New( .t., .t.)
 
@@ -203,15 +280,14 @@ STATIC FUNCTION hbnetio()
    endif
 */
 
+   tpyHeaders()
+   tpyCheckRequest()
+
    IF hb_HHasKey( get, "res" )
       if ASCAN( aResp, {|a| a=get["res"] } ) > 0  
          cResp := get["res"]
       endif
    ENDIF
-
-//   UAddHeader( "Content-Type", "application/json; charset=utf-8" )
-   UAddHeader( "Access-Control-Allow-Origin", "*" )
-   UAddHeader( "TPUY_Server_Version", "0.0.1" )
 
    IF hb_HHasKey( get, "login" )
       cCommand := PadR( get["login"], 1 )
@@ -224,10 +300,16 @@ STATIC FUNCTION hbnetio()
          web_message( 100,"desconocido",oResp:hVars, cResp )
          return .f.
       endif 
-         
-      cPasswd := hb_crypt( get["pass"], cClave ) 
 
-      uResp := ~ServerLogin( get["login"], cPasswd, server[ "REMOTE_ADDR" ] ) 
+      if hb_HHasKey( get, "home")
+         cHome := get["home"]
+      else
+         cHome := "default"
+      endif
+         
+      cPasswd := hb_crypt( get["pass"], cKey ) 
+
+      uResp := ~ServerLogin( get["login"], cPasswd, server[ "REMOTE_ADDR" ], cHome ) 
 
 //tracelog "URESP", hb_valtoexp(uresp)
       
@@ -244,6 +326,17 @@ STATIC FUNCTION hbnetio()
          endif
 
          web_message( 0, "", uResp, cResp, .T. )
+
+         oApp:Add( uResp["content"]["session_id"], "" )
+         TRY
+            oServer:SetPath( "/"+uResp["content"]["session_id"], ;
+                             {|| tpysession( uResp["content"]["session_id"] )} )
+         CATCH oErr
+            ? oErr:description
+         END
+//? hb_valtoexp( oServer:hConfig) //["Mount"] )
+//            HSet( oServer:hConfig["Mount"], uResp["content"]["session_id"], {|| URedirect( "/info" ) } )
+//? hb_valToExp( oApp )
 
       else
 TRACELOG "REVISAR!!!!!", hb_eol(), hb_valtoexp(uResp)
@@ -273,7 +366,8 @@ TRACELOG "REVISAR!!!!!", hb_eol(), hb_valtoexp(uResp)
 
    ENDIF
 
-   RETURN NIL
+RETURN NIL
+
 
 
 /** Entrega el mensaje segun formato, de forma predeterminada "json"
@@ -291,13 +385,14 @@ STATIC FUNCTION web_message( nError, cMsg ,uContent, cType, lIgnore )
       hResp := uContent
    endif
 
+   tpyHeaders()
    Do Case
-   Case cType="json"
-      UAddHeader( "Content-Type", "application/json; charset=utf-8" )
-      cResp := hb_jsonEncode( hResp )
    Case cType="hb"
       UAddHeader( "Content-Type", "text/html; charset=utf-8" )
       cResp := hb_valToExp( hResp )
+   Other //Case cType="json"
+      UAddHeader( "Content-Type", "application/json; charset=utf-8" )
+      cResp := hb_jsonEncode( hResp )
    EndCase
 
 RETURN UWrite( cResp )

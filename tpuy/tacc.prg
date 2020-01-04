@@ -4,9 +4,6 @@
 
 
 
-//memvar oAcc, oApp
-
-//#include "tpy_server.ch"
 #include "hbclass.ch"
 
 
@@ -56,10 +53,12 @@ exported:
    //METHOD Get( cName )      INLINE  ::hVars[ cName ]
    METHOD ServerLogin(  )
 
-   METHOD Saluda()                  INLINE "Hola. Soy un metodo en la Clase '"        +;
-                                           ::ClassName+"' ("+::cClassName+")"         +;
-                                           " de TPuy Server. Es un gusto saludarte, " +;
-                                           "espero disfrutes la experiencia! ;) "
+   METHOD Saluda()                  INLINE "Hi. I'm method of class "                        +;
+                                           ::ClassName+" ("+::cClassName+") on tpuy/tacc.prg"+;
+                                           " of TPuy Server, a pleasure to greet. "          +;
+                                           "I hope you enjoy the experience ;) "+CRLF        +;
+                                           "Try login through: "+CRLF                        +;
+                                           "http://SERVER:PORT/tpy&login=USER_LOGIN&pass=YOUR_PASSWORD";
 
    METHOD ScriptList()              INLINE  GETDIR("XBS")
    METHOD ScriptGet(cScriptFile)    INLINE  FILEGET("XBS", cScriptFile)

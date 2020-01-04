@@ -34,7 +34,7 @@ hbpgsql.hbc
 
 #-lxhb -lhbnf -lhbct -lmysqlclient -lpq -lhbgd
 #-lgd -lm -lmysqlclient -lpq -lhbgd
-{unix}-lm -lmysqlclient
+#{unix}-lm -lmysqlclient
 
 
 # HBSSL
@@ -42,18 +42,18 @@ hbpgsql.hbc
 
 
 # PostgreSQL
-{win}-L/PgSQLClient/lib
+#{win}-L/PgSQLClient/lib
 #{unix}libpaths=/usr/local/lib/postgresql
-{unix}hbpgsql.hbc
+#{unix}hbpgsql.hbc
 
 # libdolphin (MySQL)
--I/t-gtk/tdolphin/include
-{win}-L/t-gtk/lib/win_x86/hb32/
-{unix}-L/usr/local/share/t-gtk/lib/Ubuntu_16.04.1/x86_64/hb32/
--ltdolphin 
-{win}-I/MySQLClient/include
-{win}-L/MySQLClient/lib
-{win}-lmysql
+#-I/t-gtk/tdolphin/include
+#{win}-L/t-gtk/lib/win_x86/hb32/
+#{unix}-L/usr/local/share/t-gtk/lib/Ubuntu_16.04.1/x86_64/hb32/
+#-ltdolphin 
+#{win}-I/MySQLClient/include
+#{win}-L/MySQLClient/lib
+#{win}-lmysql
 
 
 -I.
@@ -75,5 +75,6 @@ webserver/hbwebserver.prg
 tpublic.prg
 connto.prg
 netio_tools.prg
+error_msgs.prg
 
 

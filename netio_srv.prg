@@ -20,7 +20,7 @@
  *
  * La intención de este programa es ofrecer la posibilidad de crear aplicaciones 
  * livianas que no realicen conexiones directas a la base de datos para reducir
- * la carga en el servdor. 
+ * la carga en el servidor. 
  * Adicionalmente centralizar las acciones de control en el servidor como tal.
  * Un ejemplo del trabajo podría ser el hecho de generar algo similar a los triggers
  * en el servidor de NetIO de manera que en la aplicación cliente eso sea transparente.
@@ -48,7 +48,7 @@ static hMutex
 
 #include "tpuy/tpy_messages.prg"
 #include "tpuy/tpy_serv.prg"
-#include "tpuy/tapp.prg"
+#include "tpuy/tacc.prg"
 
 
 /** \brief Procedimiento Princial. */
@@ -93,57 +93,8 @@ procedure Main()
    oApp := TControl():New()
    
 
-/*
-?
-tracelog "Creando objeto de acceso publico [oAcc:oLServer]"
-   oAcc:oLServer := DbServer():New("pg", "pg_tpy")
 
-
-   if !Check_Connection( oAcc:oLServer )
-      return
-   endif
-*/
-
-/*
-tracelog "Conexion predeterminada = ", oAcc:oLServer:cConnDefault
-
-tracelog oAcc:oLServer:oConnections:pg:cDbType
-tracelog oAcc:oLServer:oConnections:pg:cClass
-
-//  Ejemplo de como lo quiero..
-// tracelog oAcc:oLServer:Get("ClassName")
-
-   oAcc:oLServer:GetConnect("mysql", "mysql")
-   if !Check_Connection( oAcc:oLServer:oConnections, oAcc )
-      netio_serverstop( pSockSrv, .t. )
-      return
-   endif
-
-if !hb_IsNil( oAcc:oLServer:oConnections:mysql ) 
-   tracelog oAcc:oLServer:oConnections:mysql:cClass
-endif
-//tracelog ValToPrg( oAcc:oLServer:oConnections:mysql )
-
-   tracelog "Conexion predeterminada = ", oAcc:oLServer:cConnDefault
-*/
-
-/*
-   oAcc:oLServer:Add("Server")
-   oAcc:oLServer:Add("cAuthor","Riztan Gutierrez <riztan@gmail.com>")
-   oAcc:oLServer:Add("cCopyright","(c) GPL")
-   oAcc:oLServer:Add("cDbServer","MySQL / TDolphin for " + hb_version() )
-*/
-?
-//   tracelog "Server: " + oAcc:cDbServer
-//   tracelog "Author: " + oAcc:cAuthor
-?
-//   db_Connect( "DbServer", "my_tpy" )
-
-//   db_Connect( "pgServer", "pg_tpy" )
-//   db_Connect( "myServer", "my_tpy" )
-
-
-   //--  Iniciamos servicio web.
+   //--  Iniciamos servicio web.  |  Initialice webservice
    #ifdef __WEBSERVICE__
      tracelog "Iniciando Servicio Web."
      hb_threadDetach( hb_threadStart( @hb_webserver() ) )

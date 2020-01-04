@@ -41,7 +41,6 @@ exported:
 
 ENDCLASS
 
-#include "tpuy/checkuser.prg"
 
 
 METHOD NEW() CLASS TCONTROL
@@ -89,6 +88,34 @@ RETURN SELF
 
 
 
+/* Check users data. Change this method to the corresponding one for 
+                     your personal application
+ */
+METHOD CheckUser( cLogin, cPass ) CLASS TCONTROL
+   Local hUsers := hb_hash(), lResp := .f.
+   
+   default cLogin to ""
+
+   hUsers := { ;
+               "test"    => "12345678",;
+               "riztang" => "01020304",;
+               "javierp" => "04030201",;
+               "onielr"  => "14131211" ;
+             } 
+
+   if hb_hHasKey( hUsers, cLogin ) 
+      if "tpy"+hUsers[cLogin]+"123" == cPass 
+         lResp := .t.
+      else
+debug "User no found",cLogin
+debug cpass
+      endif
+   endif
+
+
+RETURN lResp
+
+
 
 /** Libera un objeto de oAcc
  *
@@ -98,7 +125,7 @@ static procedure tps_Free( cObjName )
    if hb_IsNil(cObjName) ; return ;  endif
 
    if oAcc:IsDef( cObjName )
-      tracelog "Eliminando " + cObjName
+      tracelog "Deleting " + cObjName
       //tpy_release( oAcc:Get( cObjName ) )
       oAcc:Del( cObjName )
 //tracelog "Aparentemente Liberado el objeto ",cObjName

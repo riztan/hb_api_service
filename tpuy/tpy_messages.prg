@@ -241,21 +241,26 @@ return aMsgs
 /** Recibe un objeto y nombre de un metodo a ejecutar de ese objeto, 
  *  retorna lo obtenido.
  */
-function __ObjMethod( cSession, cObjId, cMethod,... )
+function __ObjMethod( cSession, cObjId, cMethod, ... )
 
-   local aPubMsgs
+   local aPubMsgs, oErr
    local aMsgs, aParams:={}, nParam := 4, cParams, uParam
    local lData
    local nPCount
    local uReturn
    local cName
    local oObj
+   local cSessionFilter := "NEW,END,ADD,DEL,SETPOS,SET,GETPOS,GETVAR,ISDEF,CLONE,NCOUNT,VARLIST,GETARRAY,GETVARS,RELEASE"
 
-   debug "Sesion:[", cSession, "] Objeto:[", cObjId, "] Metodo:[",cMethod,"]", ...
+   debug "Sesion:[", cSession, "] Objeto:[", cObjId, "] Metodo:[",cMethod,"]", ;
+         "Parametros:", hb_valtoexp(...)
    
    default cSession to "", cObjId to "",  cMethod to ""
 
-   if Empty( cObjId ) ; return NIL ; endif
+   if Empty( cObjId ) 
+      tracelog "SALIDA SIN ACCION"
+      return NIL
+   endif
 
    aPubMsgs := __objGetMsgList( oAcc )
 
@@ -272,10 +277,14 @@ function __ObjMethod( cSession, cObjId, cMethod,... )
       return NIL 
    endif
 
-   aParams := ARRAY( nPCount - 3 )
-   FOR EACH uParam IN aParams
-      uParam := hb_pValue( uParam:__EnumIndex() + 3 )
-   NEXT
+   if nPCount >= 4 .and. hb_IsHash( hb_pValue( 4 ) )
+      aParams := hb_pValue( 4 )
+   else
+     aParams := ARRAY( nPCount - 3 )
+     FOR EACH uParam IN aParams
+        uParam := hb_pValue( uParam:__EnumIndex() + 3 )
+     NEXT
+   endif
 //tracelog "++++++++++++++++++ ++++++++++ +++++++ +++ ++"
 //tracelog nPCount, " parametros: "
 //tracelog hb_valtoexp( aParams )
@@ -304,8 +313,8 @@ function __ObjMethod( cSession, cObjId, cMethod,... )
 //tracelog LINE
    endif
 */
-
-   if Empty(aParams)
+   tracelog "Parametros",hb_valtoexp(aParams)
+   if Empty(aParams) .or. aParams=NIL
       //uReturn := hb_ExecFromArray( oAcc:Get( pValue(1) ), cPar )
 
 /**
@@ -327,44 +336,70 @@ function __ObjMethod( cSession, cObjId, cMethod,... )
                debug "Metodo solicitado. ",cMethod
                return Value2Remote("")
             endif
+            debug "Ejecutando Objeto", cObjId, " Metodo", cMethod
             TRY
                uReturn := __Execute( oApp:hVars[ cObjId ], cMethod )
-            CATCH
+            CATCH oErr
                tracelog "ATENCION: Problema al solicitar el metodo",cMethod 
+               tracelog oErr:description
+               tracelog oErr:fileName
+               tracelog oErr:subsystem
+               tracelog oErr:operation
+               tracelog oErr:subcode
             END
          else
-            TRY
-               if cObjId=cSession
-//tracelog "Objeto: ["+cObjId+"]   => Clase: "+oApp:oSession:hVars[cSession]:ClassName()
-                  uReturn := __Execute( oApp:oSession:hVars[cSession], cMethod )
-               else
-//tracelog "Objeto: ["+cObjId+"]   => Clase: "+oApp:oSession:hVars[cSession]:hVars[cObjId]:ClassName()
-                   uReturn := __Execute( oApp:oSession:hVars[cSession]:hVars[cObjId], cMethod )
-               endif
-            CATCH
-               #ifdef __DEBUG__
+            debug "Ejecutando Session", cSession, " Objeto", cObjId, " Metodo", cMethod, " Parametros", hb_valtoexp(...)
+            if hb_hHasKey( oApp:oSession:hVars, cSession ) .and. ;
+                                   oApp:oSession:hVars[cSession]:IsDerivedFrom( "TSESSION" ) .and. ;
+                                 ( UPPER(cMethod) $ ( cSessionFilter ) )
+               uReturn := tpy_message( 103, err_msg(103) ) //"Instrucción no permitida" 
+               return Value2Remote( uReturn )
+            endif
+
+            if hb_hHasKey( oApp:oSession:hVars, cSession )
+               TRY
+                  if ALLTRIM(cObjId)==ALLTRIM(cSession)
+//debug "Objeto: ["+cObjId+"]   => Clase: "+oApp:oSession:hVars[cSession]:ClassName()
+                     uReturn := __Execute( oApp:oSession:hVars[cSession], cMethod, ... )
+                  else
+//debug "Objeto: ["+cObjId+"]   => Clase: "+oApp:oSession:hVars[cSession]:hVars[cObjId]:ClassName()
+//debug "Objeto: ["+cObjId+"]   => Clase: "+oApp:hObjects[cObjId]:ClassName()
+                      uReturn := __Execute( oApp:hObjects[cObjId], cMethod, ... )
+                      //uReturn := __Execute( oApp:oSession:hVars[cSession]:hVars[cObjId], cMethod, ... )
+                  endif
+               CATCH oErr
                   tracelog MSG_LINE
                   tracelog "-- ERROR AL INTENTAR EJECUTAR --"
                   tracelog "Sesion:", cSession, " cObjId:", cObjId," Metodo:", cMethod
+                  tracelog oErr:description
                   tracelog MSG_LINE
-               #endif
-               if !oApp:oSession:IsDef( cSession )
-                  uReturn := tpy_message( 100, "valor no reconocido" )
-                  return Value2Remote( uReturn )
+                  if !oApp:oSession:IsDef( cSession )
+                     uReturn := tpy_message( 100, "unknow value" )
+                     return Value2Remote( uReturn )
+                  endif
+               END
+            else
+               if hb_hHasKey( oApp:hObjects, cObjId )
+                  uReturn := __Execute( oApp:hObjects[cObjId], cMethod, ... )
                endif
-            END
+            endif
          endif
       endif
       
    else
 //tracelog "Object ------ >  ", hb_valtoexp(oAcc:hVars[ cObjId ])
 //tracelog hb_valtoexp(aParams)
+      if cObjId == "oApp"
+         tracelog "Posiblemente se está ejecutando tpuy en una version anterior. Se renombra el objeto de oApp a oAcc"
+         cObjId := "oAcc"
+      endif
       if cObjId = "oAcc"
-tracelog "invocando en oAcc... cSession = ",cSession,"  Metodo = ", cMethod
+         debug "invocando en oAcc... cSession = ",cSession,"  Metodo = ", cMethod, ;
+               "Parametros =", hb_valToExp(aParams)
          // -- Aca atrapamos el metodo.. si es logout solo puede hacer logout el propio usuario.
          //    No debe hacer logout a otro usuario...  (RIGC)
          if UPPER(cMethod)=="SERVERLOGOUT"
-tracelog "NO PUEDE SER!!!!!!"
+            tracelog "NO PUEDE SER!!!!!!"
             uReturn := __Execute( oAcc, cMethod, {cSession} )
          else
             uReturn := __Execute( oAcc, cMethod, aParams )
@@ -372,11 +407,16 @@ tracelog "NO PUEDE SER!!!!!!"
       else
          if Empty(cSession)
 //tracelog "empty cSession"
-tracelog "ATENCION. Usuario sin sesion solicitando ejecutar ",cMethod
-tracelog "cObjId:",cObjId," cMethod:",cMethod
-tracelog MSG_LINE
-            uReturn := __Execute( oAcc:Get[ cObjId ],;
+            tracelog "ATENCION. Usuario sin sesion solicitando ejecutar ",cMethod
+            tracelog "cObjId:",cObjId," cMethod:",cMethod, " Parametros:",hb_valToExp(aParams)
+            tracelog MSG_LINE
+            try
+               uReturn := __Execute( oAcc:Get[ cObjId ],;
                                          cMethod, aParams )
+            catch oErr
+               tracelog "Problema al intentar ejecutar una instruccion"
+               tracelog oErr:description
+            end
          else
 //tracelog "no empty cSession"
 //tracelog "hVars: "
@@ -384,21 +424,69 @@ tracelog MSG_LINE
 //tracelog LINE
 //tracelog hb_valToExp( aParams )
             //uReturn := hb_ExecFromArray( oAcc:hVars[cSession]:hVars[ cObjId ],;
+//tracelog "Buscando Sesion ", cSession
             if !oApp:oSession:IsDef(cSession) 
-               uReturn := nil
+               //Posiblemente sea un objeto registrado.
+               if hb_hHasKey( oApp:hObjects, cObjId )
+//tracelog hb_valtoexp( ... )
+                  uReturn := __Execute( oApp:hObjects[cObjId], cMethod, {...} )
+               else
+tracelog "PA' FUERA!"
+                  uReturn := nil
+               endif
             else
                if cSession = cObjId
-tracelog "oApp:oSession:cSession es tipo "+oApp:oSession:hVars[cSession]:ClassName()
-                  uReturn := __Execute( oApp:oSession:Get[ cObjId ],;
-                                               cMethod, aParams )
+                  debug "oApp:oSession:cSession es tipo "+oApp:oSession:hVars[cSession]:ClassName()
+                  if !Empty( cMethod )
+                     //cObjId := cMethod
+//tracelog "Objeto", oApp:oSession:hVars[cSession]:Get( cObjId ):ClassName()
+                     #ifdef __DEBUG__
+                     tracelog "Objeto", oApp:oSession:hVars[cSession]:ClassName()
+                     tracelog "Ejecutando en sesion:", cSession," Objeto:",cObjId," Metodo:",cMethod
+                     tracelog "Parametros", hb_valtoexp(...)
+                     #endif
+                     if oApp:oSession:hVars[cSession]:IsDerivedFrom( "TSESSION" ) .and. ;
+                        ( UPPER(cMethod) $ ( cSessionFilter ) )
+                        uReturn := tpy_message( 103, err_msg(103) ) //"Instrucción no permitida" 
+                     else
+                        uReturn := __Execute( oApp:oSession:hVars[cSession], cMethod, {...} )
+                        //uReturn := __Execute( oApp:oSession:hVars[cSession]:Get[cObjId], aParams )
+                     endif
+                     return Value2Remote( uReturn )
+                  else
+                     uReturn := __Execute( oApp:oSession:hVars[cSession]:Get(cObjId),;
+                                                  cMethod, aParams )
+                  endif
                else
 //tracelog "oAcc:cSession:cObjId es tipo "+oAcc:hVars[cSession]:hVars[cObjId]:ClassName()
-tracelog "ATENCION  REVISAR ESTE PUNTO... "
-tracelog "tpy_messages"
-tracelog "cSession:",cSession, "  cObjId:",cObjId,"  cMethod:",cMethod
-tracelog MSG_LINE
-                  uReturn := __Execute( oAcc:Get[cSession]:Get[ cObjId ],;
-                                               cMethod, aParams )
+                  if hb_hHasKey( oApp:hObjects, cObjId )
+                     TRY
+                        uReturn := __Execute( oApp:hObjects[cObjId], cMethod, {...} )
+                     CATCH oErr
+                        tracelog "Problema al intentar ejecutar: "
+                        tracelog "cObjId:",cObjId,"  cMethod:",cMethod, ;
+                                 "Parametros:", hb_valToExp(...)
+                        tracelog oErr:description
+                        uReturn := tpy_message( 100, err_msg(100) ) // Mensaje no reconocido
+                     END
+                  endif
+/*
+                  tracelog "ATENCION  REVISAR ESTE PUNTO... "
+                  tracelog "tpy_messages"
+                  tracelog "cSession:",cSession, "  cObjId:",cObjId,"  cMethod:",cMethod, ;
+                           "Parametros:", hb_valToExp(aParams)
+                  tracelog MSG_LINE
+                  TRY
+                     uReturn := __Execute( oApp:Get[cSession]:Get[ cObjId ],;
+                                                  cMethod, aParams )
+                  CATCH oErr
+                     tracelog "Problema al intentar ejecutar: "
+                     tracelog "cSession:",cSession, "  cObjId:",cObjId,"  cMethod:",cMethod, ;
+                              "Parametros:", hb_valToExp(aParams)
+                     tracelog oErr:description
+                     uReturn := tpy_message( 100, err_msg(100) ) // Mensaje no reconocido
+                  END
+*/
                endif
             endif
          endif
@@ -448,18 +536,21 @@ tracelog MSG_LINE
    if hb_IsObject( uReturn )
       if Empty(cSession)
          // -- Se ha retornado un objeto, se registra ese objeto.
-         cName := hb_MD5( "tpy"+cName+DTOC(DATE()) )
-//tracelog "Registrando... cName, valor = ", cName
+         cName := cName //hb_MD5( "tpy"+cName+DTOC(DATE()) )
+         debug "Registrando... cName, valor = ", cName
 /**  Esto ya no sería necesario... el objeto ya fue registrado en el proceso de login. RIGC 2019-07-07
          tracelog "<PENDIENTE>  Este identificador, debe ser registrado en el objeto de la sesion abierta del usuario "
          oAcc:Add( cName, uReturn )
 */
+         oApp:oSession:Add( cName, uReturn )
       else
-         oObj := oAcc:oSession:Get(cSession)
+         debug "Session", cSession
+         oObj := oApp:oSession:Get(cSession)
          if hb_IsNIL( oObj )
             tracelog " Objeto NULO, retornamos vacio. "
             return Value2Remote("")
          endif
+         debug "registrando cName",cName
          oObj:Add( cName, uReturn )
       endif
 //tracelog "registrado objeto ["+cName+"] en "+cObjId,CRLF,Repl("=",30),CRLF
@@ -472,30 +563,29 @@ tracelog MSG_LINE
 //?
 //   aMsgs := __objGetMethodList( oAcc:Get( cObjId ) )
       return Value2Remote( cName )
-   else
+//   else
 //tracelog "Objeto: ",cObjId
 //tracelog "Metodo: ",cMethod
 //tracelog "No hay objeto como retorno..."
    endif
            
-//   tracelog "convirtiendo valor a retornar..."                   
+   tracelog "convirtiendo valor a retornar..."                   
 return Value2Remote( uReturn )
 
 
 
 static function __Execute( ... )
 
-   local uRet
+   local uRet, oErr
 
    TRY
       uRet := hb_ExecFromArray( ... )
-   CATCH
-#ifdef __DEBUG__
+   CATCH oErr
       tracelog MSG_LINE
       tracelog "Problema al intentar una ejecucion. "
       tracelog ...
+      tracelog oErr:description
       tracelog MSG_LINE
-#endif
       uRet := NIL
    END
 
