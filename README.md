@@ -2,12 +2,17 @@
 Un API muy básico usando servicio web y netIO de Harbour. Funcional en Windows y GNU/Linux
 
 # Requisitos
-Para ejecutar la primera vez, es necesario crear los certificados.
+Para ejecutar la primera vez, es necesario generar el certificado.
 
-openssl genrsa -out privatekey.pem 2048
+openssl genrsa -out privatekey.pen 2048
+
 openssl req -new -subj "/C=LT/CN=mycompany.org/O=My Company" -key privatekey.pem -out certrequest.csr
+
 openssl x509 -req -days 730 -in certrequest.csr -signkey privatekey.pem -out certificate.pem
+
 openssl x509 -in certificate.pem -text -noout
+
+
 
 # Binarios
 Se incluye binarios para windows (32 bits) y gnu/linux ubuntu (64 bits)
