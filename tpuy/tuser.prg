@@ -16,6 +16,12 @@ protected:
    DATA hData
 
    DATA hUsers  INIT {;
+                     "test" => ;
+                             {"firstname" => "Test",                 ;
+                              "shortname" => "Test",                 ;
+                              "lastname"  => "User",                 ;
+                              "email"     => "demo@demo.org"         ;
+                             },;
                      "riztang" => ;
                              {"firstname" => "Riztan Ivan",          ;
                               "shortname" => "Riztan",               ;
@@ -27,12 +33,6 @@ protected:
                               "shortname" => "Javier",               ;
                               "lastname"  => "Peña Nieto",           ;
                               "email"     => "jparada_a@hotmail.com" ;
-                             },;
-                     "tulioj" => ;
-                             {"firstname" => "Tulio Jaimes",         ;
-                              "shortname" => "Tulio",                ;
-                              "lastname"  => "Puro Navas",           ;
-                              "email"     => "jaimes.ta@gmail.com"   ;
                              },;
                      "onielr" => ;
                              {"firstname" => "Oniel Ajedrez",        ;
@@ -60,7 +60,7 @@ RETURN hResp
 
 
 METHOD New( cLogin ) CLASS TUSER
-   local aUsers := {"riztang","javierp","tulioj","onielr"}
+   local aUsers := {"test","riztang","javierp","onielr"}
 
    if ASCAN( aUsers, {|user| user==cLogin } )=0
       return nil

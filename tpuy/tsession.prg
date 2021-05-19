@@ -12,11 +12,11 @@ CLASS TSESSION FROM TPUBLIC
    METHOD UserData()
    METHOD LogOut()  INLINE oApp:oSession:Del( ::cId )
 
-   METHOD Help()    INLINE "Hola. Esta es la calse TSession. A través de esta, puedes obtener "+;
-                           "información de tu sesion abierta. "+;
-                           "Algunos metodos disponibles "+CRLF+;
-                           "UserData() -> Retorna los datos básicos del usuario en esta sesion. "+CRLF+;
-                           "Logout()   -> Finaliza esta sesión. "
+   METHOD Help()    INLINE "Hi. This is the TSession class. "                                    +;
+                           "Through this class, you can get information from your open session. "+CRLF+;
+                           "Some methods available: "                                            +CRLF+;
+                           "UserData()  -> Returns the basic user data in this session. "        +CRLF+;
+                           "Logout()    -> End this session."
 
 ENDCLASS
 
