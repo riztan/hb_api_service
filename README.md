@@ -4,7 +4,7 @@ Un API muy básico usando servicio web y netIO de Harbour. Funcional en Windows 
 # Requisitos
 Para ejecutar la primera vez, es necesario generar el certificado.
 
-openssl genrsa -out privatekey.pen 2048
+openssl genrsa -out privatekey.pem 2048
 
 openssl req -new -subj "/C=LT/CN=mycompany.org/O=My Company" -key privatekey.pem -out certrequest.csr
 
